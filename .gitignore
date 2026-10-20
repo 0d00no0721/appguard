@@ -1,6 +1,8 @@
 # Local runtime / test data
 /.appguard-dev/
 /.frozen-local4/
+/.llm-dev/
+/.llm-frozen*/
 /archive/
 /tests/.work/
 /**/__pycache__/

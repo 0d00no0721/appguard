@@ -1427,3 +1427,63 @@ table.tbl .ellipsis { max-width: 260px; overflow: hidden; text-overflow: ellipsi
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* --------------------------------------------------------------------------
+   AI / LLM 解释
+   -------------------------------------------------------------------------- */
+.llm-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px 12px;
+  margin-top: 12px;
+}
+.llm-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+.llm-field .input,
+.llm-field .select { height: 32px; }
+.llm-wide { grid-column: 1 / -1; }
+.llm-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--dim); font-size: 12px; }
+.ai-warn {
+  border: 1px solid #5a4a20;
+  border-left: 4px solid var(--amber);
+  background: #2d271c;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.ai-warn b { color: var(--amber); }
+.ai-warn p { margin-top: 4px; color: var(--muted); }
+.ai-file-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ai-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  background: var(--panel-2);
+  border-left: 2px solid var(--sky);
+  font-size: 12px;
+}
+.ai-file-row .mono { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-result {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 52vh;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  background: var(--bg-2);
+  line-height: 1.7;
+}
+.ai-meta { margin-top: 8px; color: var(--dim); font: 12px var(--mono); }

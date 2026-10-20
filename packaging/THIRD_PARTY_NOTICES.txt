@@ -1,4 +1,4 @@
-AppGuard 0.3.0 - third-party notices
+AppGuard 0.4.0 - third-party notices
 
 This application is built with the following open-source components:
 

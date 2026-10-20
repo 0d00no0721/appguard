@@ -8,7 +8,7 @@
 本包**不含任何 UI**：所有对外能力经 IPC（见 接口规范.md）暴露。
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 API_VERSION = 1
 
 __all__ = ["__version__", "API_VERSION"]

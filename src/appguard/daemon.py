@@ -20,7 +20,7 @@ from .ipc import (API_VERSION, E_API_VERSION, E_BAD_REQUEST, E_BUSY, E_NOT_FOUND
                   IpcError, PIPE_NAME, PipeServer)
 from .models import Health, RiskLevel
 
-SERVER_VERSION = "guardd/0.3.0"
+SERVER_VERSION = "guardd/0.4.0"
 
 _VALID_ROLES = {"main", "launcher", "updater", "telemetry", "crash", "ad", "tray", "helper",
                 "daemon", "service", "installer", "system", "unknown"}

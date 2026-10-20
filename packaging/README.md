@@ -1,4 +1,4 @@
-# AppGuard 打包与安装包（0.3.0）
+# AppGuard 打包与安装包（0.4.0）
 
 > 状态：**源码版 + 冻结版 + Inno Setup 安装包已构建**。
 > 自动测试覆盖了源码/冻结 exe 的 daemon/web/CLI/托盘启动；真正安装需要用户点一次 UAC，
@@ -22,8 +22,8 @@
 ## 1. 目标产物
 
 ```text
-E:\小工具\app_guard\dist\installer\AppGuardSetup-0.3.0-x64.exe
-E:\小工具\app_guard\dist\installer\AppGuardSetup-0.3.0-x64.exe.sha256
+E:\小工具\app_guard\dist\installer\AppGuardSetup-0.4.0-x64.exe
+E:\小工具\app_guard\dist\installer\AppGuardSetup-0.4.0-x64.exe.sha256
 ```
 
 安装后：
@@ -70,7 +70,7 @@ AppGuard.exe cli status|stop|doctor|...
 | `appguard_launcher.MAKE_SHORTCUT` | `python tools/make_shortcut.py` | `AppGuard.exe shortcut` |
 | `appguard_web` 静态目录 | `ROOT/web` | `os.path.dirname(sys.executable)/web`（onedir） |
 | `make_shortcut.py` | pythonw + script | `AppGuard.exe` + 图标 |
-| 版本 | `src/appguard/__init__` 0.1.0 / `web.py` 0.3.0 / 页面 v0.3 | 统一 `version.py`，exe 资源/安装器/页面同源 |
+| 版本 | `src/appguard/__init__` 0.4.0 / `web.py` 0.4.0 / 页面 v0.4.0 | 统一 `version.py`，exe 资源/安装器/页面同源 |
 
 > 这些适配只影响“打包版”；源码版继续用 `tools/*.py` 和 `console_python()`。
 
@@ -80,14 +80,14 @@ AppGuard.exe cli status|stop|doctor|...
 [Setup]
 AppId={{...固定 GUID...}}
 AppName=AppGuard
-AppVersion=0.3.0
+AppVersion=0.4.0
 DefaultDirName={autopf}\AppGuard
 DisableDirPage=no
 UsePreviousAppDir=yes
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputBaseFilename=AppGuardSetup-0.3.0-x64
+OutputBaseFilename=AppGuardSetup-0.4.0-x64
 ```
 
 安装流程：
@@ -137,7 +137,7 @@ packaging/
 
 顺序：
 
-1. `python tests\run_all.py`（255 项）；
+1. `python tests\run_all.py`（290 项）；
 2. `pyinstaller packaging\AppGuard.spec --noconfirm --clean`；
 3. 冒烟：`AppGuard.exe daemon`（临时 data-dir）、`AppGuard.exe web` + health、
    `AppGuard.exe` 托盘；
@@ -163,18 +163,18 @@ packaging/
 | 卸载 | 停守护、删任务；数据按选择保留 |
 | 中文用户名/路径 | 端点、日志、任务路径正常 |
 
-## 7. 已构建的 0.3.0 产物与测试
+## 7. 已构建的 0.4.0 产物与测试
 
 ```text
 dist\AppGuard\AppGuard.exe                          # 便携/冻结版（onedir）
-dist\installer\AppGuardSetup-0.3.0-x64.exe          # Inno Setup 安装包
-dist\installer\AppGuardSetup-0.3.0-x64.exe.sha256
+dist\installer\AppGuardSetup-0.4.0-x64.exe          # Inno Setup 安装包
+dist\installer\AppGuardSetup-0.4.0-x64.exe.sha256
 ```
 
 当前 SHA256：
 
 ```text
-63f90eee94f20bc4c8d71820b4e6c8640cde850a5233bb01c1151f1ea613b251
+9d672bc4a979e8ab9acc17369cfed696b8fe76d100fddd0f03913db4edeae1b5
 ```
 
 构建命令：
@@ -192,7 +192,7 @@ D:\python\python.exe -m PyInstaller packaging\AppGuard.spec --noconfirm --clean
 
 已自动化验证：
 
-- `tests\run_all.py`：255/255；
+- `tests\run_all.py`：290/290；
 - `AppGuard.exe daemon`（自定义 data-dir/pipe）启动、`AppGuard.exe web` 返回 health=ok、
   `/`/`app.css`/`app.js` 200；
 - `AppGuard.exe cli init` 可创建数据目录；
@@ -206,7 +206,7 @@ D:\python\python.exe -m PyInstaller packaging\AppGuard.spec --noconfirm --clean
 
 ## 8. 安装/使用（交给用户）
 
-1. 双击 `dist\installer\AppGuardSetup-0.3.0-x64.exe`；
+1. 双击 `dist\installer\AppGuardSetup-0.4.0-x64.exe`；
 2. UAC 选“是”；
 3. 目录页可改到 `D:\Apps\AppGuard` 等；数据仍固定在 `C:\ProgramData\AppGuard`；
 4. 安装完成后勾选“Launch AppGuard”（以**原普通用户**启动，安装器已用
@@ -238,7 +238,7 @@ Error 5: Access denied.
 ```powershell
 cd /d E:\小工具\app_guard\dist\installer
 $env:TEMP="$env:SystemRoot\Temp"; $env:TMP="$env:SystemRoot\Temp"
-.\AppGuardSetup-0.3.0-x64.exe
+.\AppGuardSetup-0.4.0-x64.exe
 ```
 
 如果仍然失败，需要改用 per-user 安装器（安装到 `%LOCALAPPDATA%\Programs`，

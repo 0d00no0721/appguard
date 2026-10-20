@@ -16,12 +16,12 @@ VSVersionInfo(
         [
           StringStruct('CompanyName', 'AppGuard'),
           StringStruct('FileDescription', 'AppGuard - process ledger'),
-          StringStruct('FileVersion', '0.3.0'),
+          StringStruct('FileVersion', '0.4.0'),
           StringStruct('InternalName', 'AppGuard'),
           StringStruct('LegalCopyright', 'AppGuard contributors'),
           StringStruct('OriginalFilename', 'AppGuard.exe'),
           StringStruct('ProductName', 'AppGuard'),
-          StringStruct('ProductVersion', '0.3.0')
+          StringStruct('ProductVersion', '0.4.0')
         ]
       )
     ]),

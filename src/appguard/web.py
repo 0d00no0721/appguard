@@ -6,7 +6,7 @@
   * 只绑 127.0.0.1，随机 token，校验 Host/Origin，拒绝跨站请求；
   * SSE 用 `subscribe(since_seq)` 轮询回放（0.8s），没有连接时不轮询。
 
-接口（v0.3）：
+接口（v0.4）：
   GET  /                       前端页面（web/index.html；资源缺失时回退为 API 发现 JSON）
   GET  /api/health             网关 + 守护存活 + 前端资源状态
   GET  /api/events?token=&since_seq=   SSE 事件流（EventSource；token 可走 query）
@@ -27,8 +27,9 @@ from typing import Any, Protocol
 from urllib.parse import parse_qs, urlparse
 
 from . import ipc
+from .llm import LLM_ERROR_CODES, LlmError, LlmService
 
-VERSION = "guardweb/0.3.0"
+VERSION = "guardweb/0.4.0"
 MAX_BODY = 1 * 1024 * 1024
 SSE_POLL_SECONDS = 0.8
 SSE_HEARTBEAT_SECONDS = 15.0
@@ -82,6 +83,18 @@ WEB_METHODS = {
     "kb.apply",
     "kb.rollback",
     "daemon.reload",
+}
+
+# 这些方法由网关本地处理（不经过守护）：
+#   * 浏览器只把 API Key 发给本地网关，网关用 DPAPI 保存；
+#   * LLM/文件校验都在普通用户网关内完成。
+LOCAL_METHODS = {
+    "llm.config.get",
+    "llm.config.set",
+    "llm.config.test",
+    "llm.config.clear_key",
+    "llm.prepare",
+    "llm.explain",
 }
 
 log = logging.getLogger("appguard.web")
@@ -235,6 +248,8 @@ class DispatcherBackend:
 
 
 def _http_status(code: str) -> int:
+    if code in LLM_ERROR_CODES:
+        return LLM_ERROR_CODES[code]
     if code in (ipc.E_BAD_REQUEST, getattr(ipc, "E_FRAME_TOO_LARGE", "")):
         return 400
     if code in (ipc.E_PERMISSION, ipc.E_DEGRADED, ipc.E_PROTECTED):
@@ -270,7 +285,8 @@ class _QuietThreadingHTTPServer(ThreadingHTTPServer):
 class WebBridge:
     def __init__(self, backend: Backend, *, host: str = "127.0.0.1", port: int = 0,
                  token: str | None = None, endpoint_path: str | None = None,
-                 max_body: int = MAX_BODY, static_root: str | None = None) -> None:
+                 max_body: int = MAX_BODY, static_root: str | None = None,
+                 llm: LlmService | None = None) -> None:
         self.backend = backend
         self.host = host
         self.port = port
@@ -278,9 +294,35 @@ class WebBridge:
         self.endpoint_path = endpoint_path or default_endpoint_path()
         self.max_body = max_body
         self.static_root = os.path.abspath(static_root or DEFAULT_WEB_ROOT)
+        self.llm = llm or LlmService(backend)
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._started_at = time.time()
+
+    def local_call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        """网关本地方法（LLM 配置/解释），不经过守护 IPC。"""
+        if method == "llm.config.get":
+            return self.llm.public_config()
+        if method == "llm.config.set":
+            return self.llm.set_config(
+                params.get("config") if isinstance(params.get("config"), dict) else {},
+                api_key=params.get("api_key"),
+                clear_key=bool(params.get("clear_key")))
+        if method == "llm.config.test":
+            patch = params.get("config") if isinstance(params.get("config"), dict) else None
+            return self.llm.test(patch, params.get("api_key"))
+        if method == "llm.config.clear_key":
+            return self.llm.clear_key()
+        if method == "llm.prepare":
+            return self.llm.prepare(str(params.get("kind") or "process"),
+                                    pid=params.get("pid"),
+                                    service_name=params.get("service_name"),
+                                    software_id=params.get("software_id"))
+        if method == "llm.explain":
+            return self.llm.explain(str(params.get("consent_id") or ""),
+                                    params.get("files"),
+                                    params.get("question"))
+        raise ipc.IpcError(ipc.E_UNKNOWN_METHOD, f"网关本地不支持：{method}")
 
     # ------------------------------------------------------------------ #
     @property
@@ -396,7 +438,7 @@ class WebBridge:
 def _make_handler(bridge: WebBridge):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
-        server_version = "AppGuardWeb/0.3"
+        server_version = "AppGuardWeb/0.4"
 
         # ---- 安全与响应 -------------------------------------------------- #
         def _security_headers(self, *, html: bool = False) -> None:
@@ -547,7 +589,7 @@ def _make_handler(bridge: WebBridge):
                 self._error(404, ipc.E_NOT_FOUND, "没有这个路径")
                 return
             method = path[len("/api/"):]
-            if method not in WEB_METHODS:
+            if method not in WEB_METHODS and method not in LOCAL_METHODS:
                 self._error(404, ipc.E_UNKNOWN_METHOD, f"Web 网关不提供方法：{method}")
                 return
             try:
@@ -588,8 +630,13 @@ def _make_handler(bridge: WebBridge):
                 except (TypeError, ValueError):
                     timeout_s = None
             try:
-                result = bridge.backend.call(method, params, timeout_s=timeout_s)
+                if method in LOCAL_METHODS:
+                    result = bridge.local_call(method, params)
+                else:
+                    result = bridge.backend.call(method, params, timeout_s=timeout_s)
                 self._json(200, {"ok": True, "result": result})
+            except LlmError as exc:
+                self._error(_http_status(exc.code), exc.code, exc.message, exc.detail)
             except ipc.IpcError as exc:
                 self._error(_http_status(exc.code), exc.code, exc.message, exc.detail)
             except Exception as exc:                            # noqa: BLE001

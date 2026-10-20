@@ -18,6 +18,7 @@ import test_judgement  # noqa: E402
 import test_kb  # noqa: E402
 import test_l1l2  # noqa: E402
 import test_l3  # noqa: E402
+import test_llm  # noqa: E402
 import test_web  # noqa: E402
 from harness import run_module, summary  # noqa: E402
 
@@ -30,6 +31,7 @@ def main() -> int:
     run_module("IPC 协议契约", test_ipc.run)
     run_module("IPC 契约（扁平结构 / 失效 / 选择 / limit）", test_contract.run)
     run_module("知识库闭环（pending / review / apply）", test_kb.run)
+    run_module("LLM 解释（配置 / 文件 / Provider / 网关本地方法）", test_llm.run)
     run_module("Web 网关（HTTP / token / SSE / 安全）", test_web.run)
     run_module("守护层：持久化 / 降级 / 回收 / 契约校验", test_daemon.run)
     return summary()

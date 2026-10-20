@@ -40,6 +40,7 @@ app_guard/
 │   ├── UI参考文档.md               # 屏幕集/字段/文案/降级
 │   ├── UI搭建Prompt.md             # 历史：给 UI agent 的 prompt
 │   ├── Web后端接口.md              # 浏览器前端的 HTTP/SSE 接口、安全、错误映射
+│   ├── LLM功能.md                  # AI 解释：配置/文件/隐私/接口
 │   └── 代码复查报告.md             # 2026-10-17 历史复查（部分结论已被 R3 取代）
 ├── src/appguard/
 │   ├── models.py                  # 枚举/数据结构（含 microsoft/background/private、action）
@@ -54,6 +55,7 @@ app_guard/
 │   ├── ipc.py                     # NDJSON 信封 / 事件总线 / 管道+TCP
 │   ├── daemon.py                  # 装配：采集线程、方法分发、计划表、KB 待办
 │   ├── web.py                     # 浏览器后端：本地 HTTP/JSON + SSE + 静态页面 + token/同源校验
+│   ├── llm/                       # AI 解释：配置/DPAPI/Provider/文件/consent/审计
 │   └── cli.py                     # guardctl（14+ 子命令，含 web）
 ├── web/                           # 浏览器前端（零依赖、零构建）
 │   ├── index.html                 # 壳：侧栏 / 顶栏 / 状态栏 / Toast / Modal
@@ -62,7 +64,7 @@ app_guard/
 │   └── assets/                    # 图标（appguard.ico / 64 / 256 / png）
 ├── AppGuard.bat                   # 唯一入口：托盘启动器（服务 + Edge 窗口 + 托盘）
 ├── archive/                       # 旧运行数据归档（可整体删除；见 archive/README.md）
-├── packaging/                     # 安装包构建（0.3.0 已构建；见 packaging/README.md）
+├── packaging/                     # 安装包构建（0.4.0 已构建；见 packaging/README.md）
 │   ├── entry.py / AppGuard.spec / AppGuard.iss
 │   ├── version_info.txt / build_release.ps1
 │   └── README.md
@@ -72,7 +74,7 @@ app_guard/
 │   ├── selfcheck_basic.py / selfcheck_select.py / selfcheck_contract.py
 │   ├── selfcheck_dryrun.py / selfcheck_lifecycle.py
 │   └── README.md
-├── tests/                         # 255 项断言
+├── tests/                         # 290 项断言
 │   ├── fixtures.py                # 复刻 2026-10-17 雷电弹窗事故
 │   ├── test_l1l2.py / test_l3.py / test_judgement.py
 │   ├── test_ipc.py / test_contract.py / test_kb.py / test_daemon.py
@@ -137,17 +139,17 @@ python tools\guardctl.py serve --transport auto
 python ui\appguard_ui.py --data-dir .appguard-dev
 
 # 验证
-python tests\run_all.py                  # 255 项断言
+python tests\run_all.py                  # 290 项断言
 python tools\code_review.py              # 未用导入 0 / 死代码 0
 python tools\code_probe.py               # 全部探针通过
 python tools\acceptance_check.py         # 真机验收（管理员下更完整）
 ```
 
-## 安装包（0.3.0，已构建）
+## 安装包（0.4.0，已构建）
 
 ```text
-dist\installer\AppGuardSetup-0.3.0-x64.exe
-dist\installer\AppGuardSetup-0.3.0-x64.exe.sha256
+dist\installer\AppGuardSetup-0.4.0-x64.exe
+dist\installer\AppGuardSetup-0.4.0-x64.exe.sha256
 ```
 
 - 双击安装，UAC 选“是”；目录页可改到 D 盘；程序文件装到 `{app}`，
@@ -241,6 +243,18 @@ Web 网关安全与接口：
 
 细节与示例见 [docs/Web后端接口.md](docs/Web后端接口.md)。
 
+## AI 进程解释（0.4.0，可选）
+
+- 默认关闭；设置里配置 OpenAI-compatible API（DeepSeek/USTC/OpenRouter/Ollama/自定义）；
+- API Key 用 Windows DPAPI 加密存 `%LOCALAPPDATA%\AppGuard\llm-secret.bin`，不写
+  `config.toml`、不回传浏览器、不写审计；
+- 进程/服务上下文来自守护；文件访问只通过浏览器**系统文件选择器**，用户每次明确选择，
+  后端不按路径扫描磁盘、不写文件、不递归目录；
+- 文件默认最多 10 个 / 单个 64 KB / 总计 256 KB，发送前脱敏密码/Token；
+- 文件内容作为不可信数据处理；LLM 无工具调用，不能请求更多文件；
+- AI 输出只做解释，不进入清理计划、不自动执行；
+- 接口与安全细节见 [docs/LLM功能.md](docs/LLM功能.md)。
+
 ## 硬约束（写进实现的规矩）
 
 1. 核心不弹 UI、不打印面向用户的界面内容；一切对外能力走 IPC。
@@ -256,6 +270,7 @@ Web 网关安全与接口：
 - [AGENTS.md](AGENTS.md) —— 操作纲领与硬约束
 - [接口规范.md](接口规范.md) —— 方法/事件/错误码/数据模型/判定口径/验收
 - [docs/Web后端接口.md](docs/Web后端接口.md) —— 浏览器前端的 HTTP/SSE 接口与安全
-- [packaging/README.md](packaging/README.md) —— 安装包规划（PyInstaller + Inno Setup，暂未执行）
+- [docs/LLM功能.md](docs/LLM功能.md) —— AI 解释：配置、文件选择、隐私与错误码
+- [packaging/README.md](packaging/README.md) —— 安装包构建/验收（PyInstaller + Inno Setup，0.4.0 已构建）
 - [设计文档.md](设计文档.md) —— **历史**设计稿（旧守护态）
 - [docs/开发环境说明.md](docs/开发环境说明.md) —— 沙箱能看什么/不能看什么

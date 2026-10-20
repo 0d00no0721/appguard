@@ -37,7 +37,7 @@ if not FROZEN:
         if path not in sys.path:
             sys.path.insert(0, path)
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 TASK_NAME = "AppGuard"
 PIPE_NAME = r"\\.\pipe\AppGuard.v1"
 DEFAULT_DATA = os.path.join(os.environ.get("ProgramData", r"C:\ProgramData"), "AppGuard")

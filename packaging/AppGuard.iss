@@ -1,11 +1,11 @@
-; AppGuard 0.3.0 installer (Inno Setup 6)
+; AppGuard 0.4.0 installer (Inno Setup 6)
 ; Build: "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" packaging\AppGuard.iss
 
 [Setup]
 AppId={{8C3B6D2E-4A57-4F3E-9B6D-2A9C7E1F5D40}
 AppName=AppGuard
-AppVersion=0.3.0
-AppVerName=AppGuard 0.3.0
+AppVersion=0.4.0
+AppVerName=AppGuard 0.4.0
 AppPublisher=AppGuard
 DefaultDirName={autopf}\AppGuard
 DefaultGroupName=AppGuard
@@ -16,7 +16,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\dist\installer
-OutputBaseFilename=AppGuardSetup-0.3.0-x64
+OutputBaseFilename=AppGuardSetup-0.4.0-x64
 SetupIconFile=..\appguard.ico
 UninstallDisplayIcon={app}\AppGuard.exe
 UninstallDisplayName=AppGuard
@@ -27,10 +27,10 @@ CloseApplications=yes
 RestartApplications=no
 SetupLogging=yes
 AppMutex=Local\AppGuard.TrayLauncher.v1
-VersionInfoVersion=0.3.0.0
+VersionInfoVersion=0.4.0.0
 VersionInfoDescription=AppGuard setup
 VersionInfoProductName=AppGuard
-VersionInfoProductVersion=0.3.0
+VersionInfoProductVersion=0.4.0
 
 [Files]
 Source: "..\dist\AppGuard\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

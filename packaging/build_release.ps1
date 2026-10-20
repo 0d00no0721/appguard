@@ -30,10 +30,10 @@ Write-Host "=== Inno Setup ==="
 & $Iscc "packaging\AppGuard.iss"
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
 
-$Setup = Join-Path $Root "dist\installer\AppGuardSetup-0.3.0-x64.exe"
+$Setup = Join-Path $Root "dist\installer\AppGuardSetup-0.4.0-x64.exe"
 if (-not (Test-Path $Setup)) { throw "setup not found: $Setup" }
 $Hash = (Get-FileHash -Algorithm SHA256 $Setup).Hash.ToLower()
-"$Hash  AppGuardSetup-0.3.0-x64.exe" | Set-Content (Join-Path $Root "dist\installer\AppGuardSetup-0.3.0-x64.exe.sha256") -Encoding ascii
+"$Hash  AppGuardSetup-0.4.0-x64.exe" | Set-Content (Join-Path $Root "dist\installer\AppGuardSetup-0.4.0-x64.exe.sha256") -Encoding ascii
 
 Write-Host ""
 Write-Host "Built:"

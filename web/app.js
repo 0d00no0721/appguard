@@ -8,7 +8,7 @@
   'use strict';
 
   const TOKEN_KEY = 'appguard.token.v1';
-  const VERSION = 'v0.3.0';
+  const VERSION = 'v0.4.0';
   const POLL_MS = 10000;
 
   /* ------------------------------------------------------------------ *
@@ -49,6 +49,13 @@
     plan: '生成计划', cleanup: '执行清理', kill: '结束进程', stop_service: '停止服务',
     review: '生成待办', apply: '入库', rollback: '回滚', start: '启动', stop: '停止',
     listen: '监听', record: '记录', restore: '恢复', export: '导出'
+  };
+
+  const LLM_PRESETS = {
+    deepseek: { base_url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+    ustc: { base_url: 'https://api.llm.ustc.edu.cn/v1', model: 'qwen3.6-chat' },
+    openrouter: { base_url: 'https://openrouter.ai/api/v1', model: '' },
+    ollama: { base_url: 'http://127.0.0.1:11434/v1', model: 'qwen2.5:7b' }
   };
 
   const TM_COLORS = {
@@ -129,6 +136,7 @@
     toastTimer: 0, refreshTimer: 0, pollTimer: 0, tickTimer: 0,
     softTimer: 0, softSeq: 0, softLast: 0, chromeBuilt: false, bannerKey: '',
     swSig: '', procSig: '', auditTop: 0,
+    llm: null, llmConsent: null, llmFiles: [], llmBusy: false,
     eventSource: null, busy: false, errorSeen: false
   };
 
@@ -1083,8 +1091,10 @@
     const serviceRows = services.length ? services.map((sv) =>
       '<tr><td class="name">' + esc(sv.name) + '</td><td>' + esc(sv.display_name || '') + '</td>' +
         '<td>' + esc(sv.state || '') + '</td><td>' + esc(sv.start_type || '') + '</td>' +
-        '<td>' + esc(sv.account || '') + '</td></tr>').join('')
-      : '<tr><td colspan="5" class="tbl-empty">没有关联服务</td></tr>';
+        '<td>' + esc(sv.account || '') + '</td>' +
+        '<td><button class="btn xs ghost" data-act="ai-service" data-name="' + esc(sv.name) +
+          '" data-software="' + esc(sw.id) + '">AI 解释</button></td></tr>').join('')
+      : '<tr><td colspan="6" class="tbl-empty">没有关联服务</td></tr>';
     const autoRows = autostart.length ? autostart.map((a) =>
       '<tr><td class="name">' + esc(a.name) + '</td><td>' + esc(a.kind || '') + '</td>' +
         '<td class="wrap">' + esc(a.command || '') + '</td>' +
@@ -1112,7 +1122,7 @@
         '<thead><tr><th>PID</th><th>进程</th><th>角色</th><th>活跃</th><th>来源</th><th>标记</th><th class="num">内存</th></tr></thead>' +
         '<tbody>' + procRows + '</tbody></table></div></div>' +
       '<div class="modal-section"><h3>服务（' + services.length + '）</h3><div class="table-wrap"><table class="tbl">' +
-        '<thead><tr><th>服务</th><th>显示名</th><th>状态</th><th>启动类型</th><th>账户</th></tr></thead>' +
+        '<thead><tr><th>服务</th><th>显示名</th><th>状态</th><th>启动类型</th><th>账户</th><th>AI</th></tr></thead>' +
         '<tbody>' + serviceRows + '</tbody></table></div></div>' +
       '<div class="modal-section"><h3>自启项（' + autostart.length + '）</h3><div class="table-wrap"><table class="tbl">' +
         '<thead><tr><th>名称</th><th>类型</th><th>命令</th><th>状态</th></tr></thead>' +
@@ -1392,6 +1402,7 @@
       windows +
       '<div class="modal-actions">' +
         '<button class="btn sm" data-act="plan-pid" data-pid="' + p.pid + '">生成该进程的清理计划</button>' +
+        '<button class="btn sm ghost" data-act="ai-process" data-pid="' + p.pid + '">AI 解释</button>' +
       '</div>' +
     '</div>';
   }
@@ -1963,20 +1974,22 @@
    * 设置
    * ------------------------------------------------------------------ */
   async function loadSettings(ret) {
-    const [policy, rules, kb, st] = await Promise.all([
+    const [policy, rules, kb, st, llm] = await Promise.all([
       call('policy.get'),
       call('classify.rules'),
       call('kb.stats'),
-      call('status.get')
+      call('status.get'),
+      call('llm.config.get').catch(() => null)
     ]);
     if (!isCurrent('settings', ret)) return;
     S.policy = policy;
     S.rules = rules;
     S.kb = kb;
     S.status = st;
+    S.llm = llm || { enabled: false, has_key: false, base_url: '', model: '', file_access: {} };
     S.lastUpdate = Date.now();
     if (typeof st.event_seq === 'number') S.seq = Math.max(S.seq, st.event_seq);
-    renderSettingsScreen(policy, rules, kb, st);
+    renderSettingsScreen(policy, rules, kb, st, S.llm);
     updateChrome();
   }
 
@@ -2084,10 +2097,314 @@
       '<div class="note" style="margin-top:10px">浏览器前端以<b>普通用户</b>通过本地网关访问守护；真实清理权限仍由守护判定。</div>');
   }
 
-  function renderSettingsScreen(policy, rules, kb, st) {
+  function llmCard(cfg) {
+    const enabled = !!cfg.enabled;
+    const files = cfg.file_access || {};
+    const hasKey = !!cfg.has_key;
+    const provider = cfg.provider || 'openai-compatible';
+    const presets = [
+      ['custom', '自定义', '', ''],
+      ['deepseek', 'DeepSeek', LLM_PRESETS.deepseek.base_url, LLM_PRESETS.deepseek.model],
+      ['ustc', 'USTC', LLM_PRESETS.ustc.base_url, LLM_PRESETS.ustc.model],
+      ['openrouter', 'OpenRouter', LLM_PRESETS.openrouter.base_url, LLM_PRESETS.openrouter.model],
+      ['ollama', 'Ollama（本地）', LLM_PRESETS.ollama.base_url, LLM_PRESETS.ollama.model]
+    ];
+    const options = presets.map((p) =>
+      '<option value="' + esc(p[0]) + '"' + (p[0] === 'custom' ? ' selected' : '') + '>' + esc(p[1]) + '</option>').join('');
+    return card('05 / AI', 'AI 进程解释',
+      setRow('启用 AI 解释',
+        '默认关闭。启用后只会把进程/服务元数据和你明确选择的文件片段发给你配置的服务商。',
+        '<button class="switch ' + (enabled ? 'on' : '') + '" data-act="llm-toggle" role="switch" aria-checked="' + (enabled ? 'true' : 'false') + '" aria-label="启用 AI 解释"><i></i></button>') +
+      '<div class="llm-form">' +
+        '<label class="llm-field"><span>服务商</span>' +
+          '<select class="select" id="llm-provider" disabled>' +
+            '<option value="openai-compatible" selected>OpenAI-compatible</option>' +
+          '</select></label>' +
+        '<label class="llm-field"><span>预设</span><select class="select" id="llm-preset" data-act="llm-preset-change">' + options + '</select></label>' +
+        '<label class="llm-field llm-wide"><span>Base URL</span>' +
+          '<input class="input mono" id="llm-base" value="' + esc(cfg.base_url || '') + '" placeholder="https://api.deepseek.com/v1"></label>' +
+        '<label class="llm-field"><span>模型</span>' +
+          '<input class="input" id="llm-model" value="' + esc(cfg.model || '') + '" placeholder="deepseek-chat"></label>' +
+        '<label class="llm-field"><span>API Key</span>' +
+          '<input class="input" id="llm-key" type="password" autocomplete="off" placeholder="' +
+            (hasKey ? '已保存（留空不修改）' : '未配置') + '"></label>' +
+        '<div class="llm-wide llm-status">' +
+          (hasKey ? tag('Key 已保存', 'green') : tag('未配置 Key', 'amber')) +
+          ' ' + tag(provider, 'muted') +
+          '<span class="muted"> Key 用 Windows DPAPI 加密，浏览器不会读回。</span>' +
+        '</div>' +
+        '<div class="modal-actions llm-wide">' +
+          '<button class="btn sm" data-act="llm-test">测试连接</button>' +
+          '<button class="btn sm primary" data-act="llm-save">保存</button>' +
+          '<button class="btn sm ghost" data-act="llm-clear-key">清除 Key</button>' +
+        '</div>' +
+      '</div>' +
+      setRow('允许附加文件',
+        '开启后，解释进程时可用系统文件选择器附加文本文件；只在本次请求中读取，不扫描磁盘。',
+        '<button class="switch ' + (files.enabled !== false ? 'on' : '') + '" id="llm-file-enabled" data-act="llm-toggle-files" role="switch" aria-checked="' + (files.enabled !== false ? 'true' : 'false') + '" aria-label="允许附加文件"><i></i></button>') +
+      '<div class="note">文件上限：' + (files.max_files || 10) + ' 个 / ' +
+        (files.max_file_kb || 64) + ' KB 单个 / ' + (files.max_total_kb || 256) + ' KB 总计。' +
+        '不发送窗口标题；命令行中的密码/Token 会被脱敏。</div>',
+      '<span class="card-note">AI 输出仅供参考，不会自动执行清理</span>');
+  }
+
+  function llmFormConfig() {
+    const current = S.llm || {};
+    const currentFiles = current.file_access || {};
+    return {
+      enabled: !!current.enabled,
+      provider: 'openai-compatible',
+      base_url: (($('#llm-base') || {}).value || '').trim(),
+      model: (($('#llm-model') || {}).value || '').trim(),
+      temperature: current.temperature != null ? current.temperature : 0.2,
+      max_tokens: current.max_tokens || 800,
+      timeout_s: current.timeout_s || 45,
+      file_access: Object.assign({}, currentFiles, {
+        enabled: !!($('#llm-file-enabled') && $('#llm-file-enabled').classList.contains('on'))
+      })
+    };
+  }
+
+  async function saveLlmConfig(extra) {
+    try {
+      setBusy(true);
+      const config = Object.assign(llmFormConfig(), extra || {});
+      const keyNode = $('#llm-key');
+      const params = { config: config };
+      if (keyNode && keyNode.value.trim()) params.api_key = keyNode.value.trim();
+      const res = await call('llm.config.set', params);
+      S.llm = res;
+      if (keyNode) keyNode.value = '';
+      toast('AI 配置已保存', 'ok');
+      refreshCurrent();
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleLlm() {
+    const current = !!(S.llm && S.llm.enabled);
+    saveLlmConfig({ enabled: !current });
+  }
+
+  function toggleLlmFiles() {
+    const current = !!(S.llm && S.llm.file_access && S.llm.file_access.enabled !== false);
+    const files = Object.assign({}, (S.llm && S.llm.file_access) || {}, { enabled: !current });
+    saveLlmConfig({ file_access: files });
+  }
+
+  async function testLlm() {
+    try {
+      setBusy(true);
+      const keyNode = $('#llm-key');
+      const params = { config: llmFormConfig() };
+      if (keyNode && keyNode.value.trim()) params.api_key = keyNode.value.trim();
+      const res = await call('llm.config.test', params, { timeout: 30000 });
+      toast('连接成功：' + (res.model || '模型已响应'), 'ok');
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clearLlmKey() {
+    const ok = await confirmDialog({
+      title: '清除 API Key',
+      body: '<p>清除后 AI 解释将无法调用远程服务商，直到重新填写 Key。</p>',
+      confirmText: '清除',
+      danger: true
+    });
+    if (!ok) return;
+    try {
+      setBusy(true);
+      S.llm = await call('llm.config.clear_key', {});
+      toast('API Key 已清除', 'ok');
+      refreshCurrent();
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function llmPresetChange() {
+    const node = $('#llm-preset');
+    if (!node) return;
+    const preset = LLM_PRESETS[node.value];
+    if (!preset) return;
+    const base = $('#llm-base');
+    const model = $('#llm-model');
+    if (base) base.value = preset.base_url;
+    if (model) model.value = preset.model;
+  }
+
+  async function fileSha256(text) {
+    try {
+      if (!window.crypto || !crypto.subtle) return '';
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch (err) {
+      return '';
+    }
+  }
+
+  function aiFilesSummary() {
+    if (!S.llmFiles.length) return '<span class="muted">未选择文件</span>';
+    return S.llmFiles.map((f, idx) =>
+      '<div class="ai-file-row"><span class="mono">' + esc(f.name) + '</span>' +
+        '<span>' + esc(fmtNum(f.size)) + ' B</span>' +
+        '<button class="btn xs ghost" data-act="ai-file-remove" data-index="' + idx + '">移除</button></div>'
+    ).join('');
+  }
+
+  async function aiReadFiles(input) {
+    const prep = S.llmConsent || {};
+    const limits = prep.limits || {};
+    const maxFiles = limits.max_files || 10;
+    const maxFile = (limits.max_file_kb || 64) * 1024;
+    const maxTotal = (limits.max_total_kb || 256) * 1024;
+    const allowed = (limits.extensions || []).map((x) => String(x).toLowerCase());
+    const picked = Array.from((input && input.files) || []);
+    const files = [];
+    let total = 0;
+    for (const file of picked) {
+      if (files.length >= maxFiles) { toast('最多附加 ' + maxFiles + ' 个文件', 'warn'); break; }
+      const dot = file.name.lastIndexOf('.');
+      const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : '';
+      if (allowed.length && allowed.indexOf(ext) < 0) { toast('不支持的文件类型：' + file.name, 'warn'); continue; }
+      if (file.size > maxFile) { toast('文件过大：' + file.name, 'warn'); continue; }
+      if (total + file.size > maxTotal) { toast('附件总大小超过上限', 'warn'); break; }
+      let text = '';
+      try { text = await file.text(); } catch (err) { toast('读取失败：' + file.name, 'err'); continue; }
+      if (text.indexOf('\u0000') >= 0) { toast('看起来是二进制文件：' + file.name, 'warn'); continue; }
+      const size = new TextEncoder().encode(text).length;
+      if (size > maxFile) { toast('文件过大：' + file.name, 'warn'); continue; }
+      total += size;
+      files.push({ name: file.name, size: size, sha256: await fileSha256(text), text: text });
+    }
+    S.llmFiles = files;
+    const list = $('#ai-file-list');
+    if (list) list.innerHTML = aiFilesSummary();
+    if (input) input.value = '';
+  }
+
+  function aiConsentBody(prep) {
+    const p = prep.preview || {};
+    const limit = prep.limits || {};
+    const model = (prep.model || '—');
+    const provider = (prep.provider || 'openai-compatible');
+    const contextRows = p.kind === 'service'
+      ? '<dt>服务</dt><dd>' + esc(p.name || p.service_name || '—') + '</dd>' +
+        '<dt>服务名</dt><dd class="mono">' + esc(p.service_name || '—') + '</dd>' +
+        '<dt>状态 / 启动</dt><dd>' + esc((p.state || '—') + ' / ' + (p.start_type || '—')) + '</dd>' +
+        '<dt>软件</dt><dd>' + esc(p.software || '—') + '</dd>' +
+        '<dt>二进制</dt><dd class="mono">' + esc(p.binary_path || '—') + '</dd>'
+      : '<dt>进程</dt><dd>' + esc(p.name || '—') + ' #' + esc(p.pid || '—') + '</dd>' +
+        '<dt>发布者</dt><dd>' + esc(p.publisher || '—') + '</dd>' +
+        '<dt>角色 / 来源</dt><dd>' + esc((p.role_zh || '—') + ' / ' + (p.origin_zh || '—')) + '</dd>' +
+        '<dt>软件</dt><dd>' + esc(p.software || '—') + '</dd>' +
+        '<dt>路径</dt><dd class="mono">' + esc(p.exe || '—') + '</dd>';
+    return '<div class="ai-warn">' +
+        '<b>允许后将发送给：' + esc(provider) + ' / ' + esc(model) + '</b>' +
+        '<p>进程/服务元数据' + (prep.files_allowed ? '，以及你在下面明确选择的文件内容' : '') +
+        '。文件内容可能包含隐私或密钥，请只选择必要的文件。</p>' +
+      '</div>' +
+      '<dl class="kb-facts">' + contextRows + '</dl>' +
+      (p.explanation ? '<div class="card-note">现有规则解释</div><div class="ex-text">' + esc(p.explanation) + '</div>' : '') +
+      (prep.files_allowed
+        ? '<div class="modal-section"><h3>附加文件（可选）</h3>' +
+            '<input class="input" id="ai-file-input" type="file" multiple accept="' +
+              esc((limit.extensions || []).join(',')) + '">' +
+            '<div class="ai-file-list" id="ai-file-list">' + aiFilesSummary() + '</div>' +
+            '<div class="note">最多 ' + esc(limit.max_files || 10) + ' 个；单个 ' +
+              esc(limit.max_file_kb || 64) + ' KB；总计 ' + esc(limit.max_total_kb || 256) + ' KB。' +
+              '不扫描磁盘，不写文件。</div></div>'
+        : '<div class="note">文件附件功能已关闭；只发送进程/服务元数据。</div>') +
+      '<div class="modal-section"><h3>可选问题</h3>' +
+        '<input class="input" id="ai-question" maxlength="400" placeholder="例如：这个服务能不能关？"></div>' +
+      '<div class="modal-actions">' +
+        '<button class="btn primary" data-act="ai-run">允许并解释</button>' +
+        '<button class="btn ghost" data-act="modal-close">取消</button>' +
+      '</div>';
+  }
+
+  async function aiPrepare(kind, target) {
+    if (!S.llm) {
+      try { S.llm = await call('llm.config.get'); } catch (err) { S.llm = null; }
+    }
+    if (!S.llm || !S.llm.enabled) {
+      openModal('AI 解释未启用',
+        '<p>AI 解释默认关闭。请先在设置中配置 LLM 服务商并启用。</p>' +
+        '<div class="modal-actions"><button class="btn primary" data-act="nav" data-screen="settings">去设置</button>' +
+        '<button class="btn ghost" data-act="modal-close">关闭</button></div>');
+      return;
+    }
+    openModal('AI 解释', '<div class="loading"><span class="spinner"></span>正在准备上下文…</div>');
+    try {
+      let params;
+      if (kind === 'service') {
+        params = { kind: 'service', service_name: target.serviceName, software_id: target.softwareId };
+      } else {
+        params = { kind: 'process', pid: Number(target.pid) };
+      }
+      const prep = await call('llm.prepare', params, { timeout: 15000 });
+      if (!S.modalOpen) return;
+      S.llmConsent = prep;
+      S.llmFiles = [];
+      openModal('AI 解释 · 确认', aiConsentBody(prep), { wide: true });
+    } catch (err) {
+      if (!S.modalOpen) return;
+      openModal('AI 解释', '<p class="err">' + esc(err.message || err) + '</p>' +
+        '<div class="modal-actions"><button class="btn ghost" data-act="modal-close">关闭</button></div>');
+    }
+  }
+
+  async function aiRun() {
+    if (S.llmBusy) return;
+    const prep = S.llmConsent;
+    if (!prep || !prep.consent_id) { toast('确认已过期，请重新发起', 'warn'); closeModal(true); return; }
+    const questionNode = $('#ai-question');
+    const question = questionNode ? questionNode.value : '';
+    S.llmBusy = true;
+    openModal('AI 解释', '<div class="loading"><span class="spinner"></span>正在请求 ' +
+      esc(prep.model || 'LLM') + '…</div>');
+    try {
+      const res = await call('llm.explain', {
+        consent_id: prep.consent_id,
+        question: question,
+        files: S.llmFiles.map((f) => ({ name: f.name, size: f.size, sha256: f.sha256, text: f.text }))
+      }, { timeout: 60000 });
+      const usage = res.usage || {};
+      const meta = [res.provider, res.model, res.elapsed_ms ? (res.elapsed_ms + ' ms') : '',
+        usage.total_tokens ? (usage.total_tokens + ' tokens') : ''].filter(Boolean).join(' · ');
+      openModal('AI 解释结果',
+        '<div class="ai-result">' + esc(res.text || '') + '</div>' +
+        '<div class="ai-meta">' + esc(meta) + (res.files && res.files.length
+          ? ' · 已发送 ' + res.files.length + ' 个文件' : '') + '</div>' +
+        '<p class="note">AI 生成，可能不准确；不会自动执行任何清理动作。</p>' +
+        '<div class="modal-actions"><button class="btn ghost" data-act="modal-close">关闭</button></div>',
+        { wide: true });
+      S.llmConsent = null;
+      S.llmFiles = [];
+    } catch (err) {
+      openModal('AI 解释失败', '<p class="err">' + esc(err.message || err) + '</p>' +
+        '<p class="muted">可以稍后重试；失败的请求不会执行任何清理。</p>' +
+        '<div class="modal-actions"><button class="btn ghost" data-act="modal-close">关闭</button></div>');
+      S.llmConsent = null;
+      S.llmFiles = [];
+    } finally {
+      S.llmBusy = false;
+    }
+  }
+
+  function renderSettingsScreen(policy, rules, kb, st, llm) {
     $('#screen').innerHTML =
       '<div class="screen-inner enter"><div class="settings-grid">' +
         policyCard(policy) + protectCard(policy) + kbCard(rules, kb) + daemonCard(st) +
+        llmCard(llm || S.llm || {}) +
       '</div></div>';
   }
 
@@ -2431,6 +2748,23 @@
     'kb-review': () => kbReview(),
     'test-conn': () => testConn(),
     'show-admin-help': () => showAdminHelp(),
+    'llm-toggle': () => toggleLlm(),
+    'llm-toggle-files': () => toggleLlmFiles(),
+    'llm-save': () => saveLlmConfig(),
+    'llm-test': () => testLlm(),
+    'llm-clear-key': () => clearLlmKey(),
+    'ai-process': (el) => aiPrepare('process', { pid: Number(el.dataset.pid) }),
+    'ai-service': (el) => aiPrepare('service', {
+      serviceName: el.dataset.name,
+      softwareId: el.dataset.software
+    }),
+    'ai-run': () => aiRun(),
+    'ai-file-remove': (el) => {
+      const idx = Number(el.dataset.index);
+      S.llmFiles = S.llmFiles.filter((_f, i) => i !== idx);
+      const list = $('#ai-file-list');
+      if (list) list.innerHTML = aiFilesSummary();
+    },
     'modal-close': () => closeModal(),
     'modal-cancel': () => {
       if (S.confirmResolve) {
@@ -2506,6 +2840,10 @@
         S.audit.limit = Number(target.value) || 200;
         S.auditForce = true;
         refreshCurrent();
+      } else if (target.id === 'llm-preset') {
+        llmPresetChange();
+      } else if (target.id === 'ai-file-input') {
+        aiReadFiles(target).catch(handleError);
       }
     });
 

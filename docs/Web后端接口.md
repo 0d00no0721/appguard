@@ -83,7 +83,7 @@ AppGuard 已就绪：http://127.0.0.1:65037/
 ```json
 {
   "transport": "http",
-  "version": "guardweb/0.3.0",
+  "version": "guardweb/0.4.0",
   "host": "127.0.0.1",
   "port": 65037,
   "url": "http://127.0.0.1:65037/#token=...",
@@ -144,7 +144,7 @@ AppGuard 已就绪：http://127.0.0.1:65037/
 {
   "ok": true,
   "name": "AppGuard local API",
-  "version": "guardweb/0.3.0",
+  "version": "guardweb/0.4.0",
   "api": "/api/<method>",
   "events": "/api/events",
   "health": "/api/health",
@@ -177,7 +177,7 @@ HTTP 映射：400/401/403/404/409/410/413/415/503/504/500。
 
 ## 6. 方法白名单
 
-允许（24 个）：
+守护方法（24 个）：
 
 ```
 ping, status.get, snapshot.get,
@@ -190,6 +190,18 @@ audit.tail, audit.query,
 kb.stats, kb.review, kb.apply, kb.rollback,
 daemon.reload
 ```
+
+网关本地方法（6 个，不经过守护；详见 `docs/LLM功能.md`）：
+
+```
+llm.config.get, llm.config.set, llm.config.test, llm.config.clear_key,
+llm.prepare, llm.explain
+```
+
+- `llm.config.*` 只由网关（普通用户）读写 `%LOCALAPPDATA%\AppGuard`；
+- Key 用 DPAPI 加密，`llm.config.get` 只返回 `has_key`；
+- 文件内容来自浏览器文件选择器，`llm.explain` 不接受路径；
+- 网关仍校验 Host/Origin/token，LLM 失败映射为 `E_LLM_*`。
 
 刻意**不暴露**：`daemon.shutdown`（浏览器不应该关守护）、`audit.export`
 （避免浏览器触发任意路径写盘）、`subscribe`/`unsubscribe`/`hello`（网关自管）。
@@ -224,8 +236,8 @@ const stream = new EventSource(`/api/events?since_seq=${status.event_seq}&token=
 | 错误 | 不把 token/内部堆栈写进响应；服务端日志不记录 token |
 | 提权 | 网关普通用户；真实结束进程/停服务仍由守护管理员检查与 `dry_run` 决定 |
 
-> 浏览器页面即使被攻击，攻击者也只能调用 24 个白名单方法；且不能绕过
-> `dry_run`、计划时效、按 PID 选择与保护名单。
+> 浏览器页面即使被攻击，攻击者也只能调用 24 个守护白名单方法 + 6 个 LLM 本地方法；
+> 且不能绕过 `dry_run`、计划时效、按 PID 选择与保护名单；LLM Key 不回传、文件不接受路径。
 
 ## 9. 权限、单实例与进程标记
 
@@ -253,7 +265,7 @@ const stream = new EventSource(`/api/events?since_seq=${status.event_seq}&token=
 
 `tests/test_web.py`（40+ 断言）：发现页/健康、静态页面与 MIME、资源缺失回退、
 token、Host/Origin/Sec-Fetch-Site、白名单、Content-Type、超大 body、IPC 错误映射、
-SSE 帧、端点文件。全套 **255 项**断言通过。
+SSE 帧、端点文件。全套 **290 项**断言通过。
 
 浏览器端已用 Chrome DevTools Protocol 做过冒烟（2026-10-19）：
 

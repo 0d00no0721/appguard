@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller onedir spec for AppGuard 0.3.0."""
+"""PyInstaller onedir spec for AppGuard 0.4.0."""
 
 from pathlib import Path
 

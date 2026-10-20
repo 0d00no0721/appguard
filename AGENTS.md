@@ -40,7 +40,7 @@ python tools\guardctl.py ps --explain  # L2
 python tools\guardctl.py plan          # L3 计划（不执行；显示默认勾选/动作）
 python tools\guardctl.py clean --yes   # L3 执行（默认只执行默认勾选项）
 python tools\guardctl.py clean --pids 1234 5678   # 只执行指定 PID（行级选择）
-python tests\run_all.py                # 255 项断言（合成场景 + 契约 + 判定 + KB + Web）
+python tests\run_all.py                # 290 项断言（合成场景 + 契约 + 判定 + KB + Web）
 python tools\code_review.py            # 静态体检（现在也扫 ui/）
 python tools\code_probe.py             # 动态探针（畸形参数撞全部 IPC 方法）
 python tools\acceptance_check.py       # 真机验收（进程/软件/计划/雷电案例）
@@ -101,6 +101,9 @@ python ui\appguard_ui.py --data-dir .appguard-dev # 旧 tkinter UI（保底，�
 16. **安装器/托盘权限分离**：安装器与登录任务可以管理员；**托盘/Edge 必须普通用户**。
     Inno `[Run]` 启动 AppGuard 用 `runasoriginaluser`；不要以管理员运行托盘。
     安装包构建见 `packaging/`；Inno 安装/卸载需要用户 UAC，自动化不代点。
+17. **LLM 解释默认关闭**：Key 只能 DPAPI 存 LocalAppData，不得回传浏览器/写日志；
+    文件只接受用户通过系统文件选择器明确选择的内容，**网关不按路径读取磁盘**；
+    LLM 无工具调用、不自动执行；文件内容视为不可信，发送前脱敏并限制大小。
 
 ## 验证环境的坑（详见 `docs/开发环境说明.md`）
 
@@ -120,6 +123,7 @@ python ui\appguard_ui.py --data-dir .appguard-dev # 旧 tkinter UI（保底，�
 | `docs/Web后端接口.md` | 浏览器前端的 HTTP/SSE 接口、静态页面、启动器、安全与错误映射 |
 | `docs/UI参考文档.md` | 给 UI 的参考：屏幕集、字段、状态语义、文案素材、降级 |
 | `docs/开发环境说明.md` | 沙箱能看什么/不能看什么 + 已踩的坑 + 真机验收清单 |
-| `packaging/README.md` | 安装包构建/验收（单 exe 多模式 + Inno Setup；0.3.0 已构建） |
+| `docs/LLM功能.md` | AI 解释：配置、DPAPI、文件选择、隐私、接口与错误码 |
+| `packaging/README.md` | 安装包构建/验收（单 exe 多模式 + Inno Setup；0.4.0 已构建） |
 | `docs/代码复查报告.md` | 2026-10-17 历史复查（部分结论已被 R3 取代） |
 | `设计文档.md` | **历史设计稿**（旧 GUARDED/IN_USE 守护态，未实现；以 README/接口规范为准） |
