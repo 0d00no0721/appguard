@@ -174,7 +174,7 @@ dist\installer\AppGuardSetup-0.4.0-x64.exe.sha256
 当前 SHA256：
 
 ```text
-9d672bc4a979e8ab9acc17369cfed696b8fe76d100fddd0f03913db4edeae1b5
+85e59a4a2ae3a93cd93ba13666d1742a5ee6ed28bea2803c78325140ac7f9d38
 ```
 
 构建命令：
