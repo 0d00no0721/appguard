@@ -1,0 +1,38 @@
+# Local runtime / test data
+/.appguard-dev/
+/.frozen-local4/
+/archive/
+/tests/.work/
+/**/__pycache__/
+*.py[cod]
+*.pyo
+
+# Build and release outputs
+/build/
+/dist/
+*.spec.bak
+*.msi
+*.exe
+
+# Local logs / endpoint files
+*.log
+*.tmp
+*.writing
+web-endpoint*.json
+launcher.json
+daemon.pid
+endpoint.json
+state.json
+
+# Machine-specific screenshots (may contain local software/paths)
+/docs/screenshots/
+/ui/screenshots/
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+
+# Local config backups
+*.bak-*

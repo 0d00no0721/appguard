@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#1e1e1e">
+  <meta name="description" content="AppGuard · 按软件分组的进程账本，按进程决定关谁。">
+  <title>AppGuard · 进程账本</title>
+  <link rel="icon" href="/assets/appguard.ico">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar" aria-label="主导航">
+      <div class="brand" title="AppGuard">
+        <img src="/assets/appguard-64.png" alt="AppGuard">
+        <span class="brand-mark">AG</span>
+      </div>
+      <nav class="nav" id="nav"></nav>
+      <div class="side-foot">
+        <span class="foot-mark"></span>
+        <span>LOCAL<br><b id="app-version">v0.3.0</b></span>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="titles">
+          <div class="kicker">APPGUARD / PROCESS LEDGER</div>
+          <h1 id="page-title">总览</h1>
+        </div>
+        <div class="top-right" id="top-right"></div>
+      </header>
+
+      <div id="banner" class="banner hidden" role="status"></div>
+
+      <main class="screen" id="screen">
+        <div class="loading"><span class="spinner"></span>正在读取守护…</div>
+      </main>
+
+      <footer class="statusbar">
+        <span id="status-left" class="status-left">正在连接…</span>
+        <span id="status-right" class="status-right">AppGuard · 本地进程账本</span>
+      </footer>
+    </section>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="modal-root"></div>
+
+  <noscript>
+    <div class="noscript">AppGuard 的前端需要 JavaScript。请通过 <code>python tools\guardctl.py web</code> 启动网关后，用带 <code>#token=</code> 的地址打开本页。</div>
+  </noscript>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

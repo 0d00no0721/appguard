@@ -1,0 +1,14 @@
+AppGuard 0.3.0 - third-party notices
+
+This application is built with the following open-source components:
+
+- Python 3.12 (Python Software Foundation License)
+- PyInstaller (GPL v2 with bootloader exception)
+- pywin32 (Python Software Foundation License)
+- Inno Setup (Inno Setup License) - only used to build the installer
+
+AppGuard itself is a local-only tool. It does not send telemetry and does not
+upload audit logs or process data. See README-zh.md for the security model.
+
+No warranty is provided. Use the real-cleanup mode only on processes you have
+explicitly selected.
